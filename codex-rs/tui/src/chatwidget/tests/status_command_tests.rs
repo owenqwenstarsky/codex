@@ -4,6 +4,67 @@ use assert_matches::assert_matches;
 use codex_app_server_protocol::ThreadUsage;
 use codex_app_server_protocol::ThreadUsageBreakdownGroup;
 use codex_utils_path_uri::PathUri;
+use pretty_assertions::assert_eq;
+
+#[tokio::test]
+async fn custom_provider_status_refresh_is_informational_and_preserves_cached_limits_on_failure() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.model_provider.supports_usage = true;
+    chat.config.model_provider_id = "custom".into();
+    chat.config.model_provider.name = "Custom API".into();
+    chat.dispatch_command(SlashCommand::Status);
+    let cell = match rx.try_recv().unwrap() {
+        AppEvent::InsertHistoryCell(cell) => cell,
+        event => panic!("expected immediate status output, got {event:?}"),
+    };
+    let request_id = match rx.try_recv().unwrap() {
+        AppEvent::RefreshRateLimits {
+            origin: RateLimitRefreshOrigin::StatusCommand { request_id },
+        } => request_id,
+        event => panic!("expected usage refresh, got {event:?}"),
+    };
+    let mut exhausted = snapshot(/*percent*/ 100.0);
+    exhausted.spend_control_reached = Some(true);
+    exhausted.rate_limit_reached_type = Some(RateLimitReachedType::WorkspaceMemberCreditsDepleted);
+    exhausted.normal_model_slug = Some("gpt-5.6-luna".into());
+    chat.finish_status_rate_limit_refresh(request_id, vec![exhausted]);
+    assert_chatwidget_snapshot!(
+        "custom_provider_status_usage",
+        lines_to_single_string(&cell.display_lines(/*width*/ 100))
+    );
+    assert_eq!(
+        (
+            chat.codex_spend_control_reached,
+            chat.codex_rate_limit_reached_type
+        ),
+        (None, None)
+    );
+    assert!(matches!(
+        chat.rate_limit_switch_prompt,
+        RateLimitSwitchPromptState::Idle
+    ));
+    assert!(rx.try_recv().is_err());
+    chat.dispatch_command(SlashCommand::Status);
+    let cached_cell = match rx.try_recv().unwrap() {
+        AppEvent::InsertHistoryCell(cell) => cell,
+        event => panic!("expected cached status output, got {event:?}"),
+    };
+    let request_id = match rx.try_recv().unwrap() {
+        AppEvent::RefreshRateLimits {
+            origin: RateLimitRefreshOrigin::StatusCommand { request_id },
+        } => request_id,
+        event => panic!("expected usage refresh, got {event:?}"),
+    };
+    chat.finish_status_rate_limit_refresh(request_id, Vec::new());
+    assert_eq!(
+        lines_to_single_string(&cached_cell.display_lines(/*width*/ 100)),
+        lines_to_single_string(&cell.display_lines(/*width*/ 100)),
+    );
+    assert!(chat.refreshing_status_outputs.is_empty());
+    // Stored ChatGPT credentials must not opt this custom usage endpoint into polling.
+    set_chatgpt_auth(&mut chat);
+    assert_eq!(chat.rate_limit_refresh_interval(), None);
+}
 
 #[tokio::test]
 async fn status_command_renders_immediately_and_refreshes_rate_limits_for_chatgpt_auth() {

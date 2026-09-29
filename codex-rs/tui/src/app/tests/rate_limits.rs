@@ -106,6 +106,33 @@ fn deliver_usage_limit_error(app: &mut App) {
 }
 
 #[tokio::test]
+async fn custom_provider_usage_does_not_start_background_or_recovery_reads() -> Result<()> {
+    let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;
+    app.config.model_provider.supports_usage = true;
+    set_chatgpt_auth(&mut app.chat_widget);
+    let session = Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
+    for origin in [
+        RateLimitRefreshOrigin::Recovery,
+        RateLimitRefreshOrigin::Periodic,
+        RateLimitRefreshOrigin::StartupPrefetch {
+            reset_hint_request_id: 0,
+        },
+    ] {
+        app.refresh_rate_limits(&session, origin);
+    }
+    assert!(!app.rate_limit_refresh_state.has_pending_recovery());
+    assert_eq!(app.rate_limit_hard_stop_generation, 0);
+    assert!(
+        app.rate_limit_refresh_state
+            .poll_deadline(Duration::from_secs(/*secs*/ 60))
+            .unwrap()
+            <= Instant::now()
+    );
+    session.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn backend_banner_state_survives_widget_replacement() -> Result<()> {
     for dismiss in [false, true] {
         let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;

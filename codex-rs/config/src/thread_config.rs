@@ -285,6 +285,7 @@ mod tests {
                     requires_openai_auth = false
                     supports_websockets = true
                     supports_standalone_web_search = true
+                    supports_usage = false
 
                     [features]
                     plugins = false
@@ -316,6 +317,8 @@ mod tests {
             requires_openai_auth: false,
             supports_websockets: true,
             supports_standalone_web_search: true,
+            supports_usage: false,
+            usage_url: None,
             include_internal_metadata: false,
         }
     }

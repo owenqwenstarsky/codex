@@ -1743,6 +1743,17 @@ impl App {
                         false
                     }
                 };
+                if self.config.model_provider.supports_usage
+                    && let RateLimitRefreshOrigin::StatusCommand { request_id } = origin
+                {
+                    let snapshots = if accepted {
+                        result.map(app_server_rate_limit_snapshots).unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    self.chat_widget.finish_status_rate_limit_refresh(request_id, snapshots);
+                    return Ok(AppRunControl::Continue);
+                }
                 match result {
                 Ok(response) => {
                     let rate_limit_reset_credits = response.rate_limit_reset_credits.clone();

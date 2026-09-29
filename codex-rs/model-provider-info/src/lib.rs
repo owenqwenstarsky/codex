@@ -194,6 +194,11 @@ pub struct ModelProviderInfo {
     /// Whether this provider supports the standalone web-search endpoint.
     #[serde(default)]
     pub supports_standalone_web_search: bool,
+    /// Whether this provider exposes Codex-compatible usage statistics for `/status`.
+    #[serde(default)]
+    pub supports_usage: bool,
+    /// Optional full usage endpoint URL. Defaults to `<base_url>/usage` when enabled.
+    pub usage_url: Option<RedactedString>,
     /// Runtime-only opt-in for internal metadata, independent of the destination check.
     /// This cannot be loaded from or written to serialized provider configuration.
     #[serde(skip)]
@@ -554,6 +559,8 @@ other non-default provider fields are not supported"
             requires_openai_auth: true,
             supports_websockets: true,
             supports_standalone_web_search: true,
+            supports_usage: false,
+            usage_url: None,
             include_internal_metadata: true,
         }
     }
@@ -593,6 +600,8 @@ other non-default provider fields are not supported"
             requires_openai_auth: false,
             supports_websockets: false,
             supports_standalone_web_search: false,
+            supports_usage: false,
+            usage_url: None,
             include_internal_metadata: false,
         }
     }
@@ -766,6 +775,8 @@ pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> M
         requires_openai_auth: false,
         supports_websockets: false,
         supports_standalone_web_search: false,
+        supports_usage: false,
+        usage_url: None,
         include_internal_metadata: false,
     }
 }

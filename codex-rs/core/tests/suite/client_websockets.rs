@@ -2661,6 +2661,8 @@ fn websocket_provider_with_connect_timeout(
         requires_openai_auth: false,
         supports_websockets: true,
         supports_standalone_web_search: false,
+        supports_usage: false,
+        usage_url: None,
         include_internal_metadata: false,
     }
 }

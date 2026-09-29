@@ -109,6 +109,11 @@ impl App {
         app_server: &AppServerSession,
         origin: RateLimitRefreshOrigin,
     ) {
+        if self.config.model_provider.supports_usage
+            && !matches!(origin, RateLimitRefreshOrigin::StatusCommand { .. })
+        {
+            return;
+        }
         if matches!(
             origin,
             RateLimitRefreshOrigin::Recovery | RateLimitRefreshOrigin::ResetConsume { .. }
@@ -122,7 +127,9 @@ impl App {
         else {
             return;
         };
-        self.chat_widget.start_usage_notice_read(request_id);
+        if !self.config.model_provider.supports_usage {
+            self.chat_widget.start_usage_notice_read(request_id);
+        }
         let request_handle = app_server.request_handle();
         let app_event_tx = self.app_event_tx.clone();
         tokio::spawn(async move {
