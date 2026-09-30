@@ -114,9 +114,6 @@ async fn custom_provider_usage_does_not_start_background_or_recovery_reads() -> 
     for origin in [
         RateLimitRefreshOrigin::Recovery,
         RateLimitRefreshOrigin::Periodic,
-        RateLimitRefreshOrigin::StartupPrefetch {
-            reset_hint_request_id: 0,
-        },
     ] {
         app.refresh_rate_limits(&session, origin);
     }

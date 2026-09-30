@@ -287,6 +287,8 @@ impl App {
         self.rate_limit_refresh_state.invalidate_recovery();
         session.inherit_task_tool_capabilities(app_server);
         *app_server = session;
+        app_server.sync_provider_usage(&mut self.config);
+        self.chat_widget.sync_provider_usage(&self.config);
         #[cfg(any(target_os = "windows", test))]
         let interrupted_windows_setup = self.windows_sandbox.pending_setup.take().is_some();
         #[cfg(any(target_os = "windows", test))]

@@ -401,6 +401,7 @@ impl MessageProcessor {
         let config_processor = ConfigRequestProcessor::new(
             outgoing.clone(),
             config_manager.clone(),
+            config.model_provider.clone(),
             thread_manager.clone(),
             analytics_events_client.clone(),
         );

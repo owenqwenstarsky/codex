@@ -1897,6 +1897,10 @@ impl App {
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::OpenRateLimitResetCredits => {
+                if self.config.model_provider.supports_usage {
+                    self.chat_widget.add_error_message("Usage resets aren't available for this provider.".into());
+                    return Ok(AppRunControl::Continue);
+                }
                 let request_id = self.chat_widget.show_rate_limit_reset_loading_popup();
                 self.refresh_rate_limits(
                     app_server,

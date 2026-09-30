@@ -2809,6 +2809,13 @@ class ModelProviderCapabilitiesReadResponse(BaseModel):
     )
     image_generation: Annotated[bool, Field(alias="imageGeneration")]
     namespace_tools: Annotated[bool, Field(alias="namespaceTools")]
+    supports_usage: Annotated[
+        bool | None,
+        Field(
+            alias="supportsUsage",
+            description="Whether the server account provider supports informational usage reads.",
+        ),
+    ] = False
     web_search: Annotated[bool, Field(alias="webSearch")]
 
 

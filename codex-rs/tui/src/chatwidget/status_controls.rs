@@ -306,6 +306,9 @@ impl ChatWidget {
             return;
         }
 
+        if self.config.model_provider.supports_usage && !snapshots.is_empty() {
+            self.rate_limit_snapshots_by_limit_id.clear();
+        }
         for snapshot in snapshots {
             if self.config.model_provider.supports_usage {
                 let limit_id = snapshot.limit_id.clone().unwrap_or_else(|| "codex".into());
@@ -327,6 +330,9 @@ impl ChatWidget {
             }
         }
 
+        if self.config.model_provider.supports_usage {
+            self.refresh_status_surfaces();
+        }
         let rate_limit_snapshots: Vec<RateLimitSnapshotDisplay> = self
             .rate_limit_snapshots_by_limit_id
             .values()
@@ -347,6 +353,11 @@ impl ChatWidget {
         if updated_any {
             self.request_redraw();
         }
+    }
+
+    /// Adopts server-owned usage support without copying provider credentials or routing.
+    pub(crate) fn sync_provider_usage(&mut self, config: &Config) {
+        self.config.model_provider.supports_usage = config.model_provider.supports_usage;
     }
 
     pub(super) fn open_status_line_setup(&mut self) {

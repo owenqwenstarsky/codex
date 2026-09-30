@@ -19,6 +19,16 @@ impl AccountRequestProcessor {
                 .api_auth()
                 .await
                 .map_err(|_| invalid_request("failed to resolve usage provider credentials"))?;
+            if self.config.model_provider.has_command_auth()
+                && provider
+                    .auth_manager()
+                    .and_then(|manager| manager.auth_cached())
+                    .is_none()
+            {
+                return Err(invalid_request(
+                    "failed to resolve usage provider credentials",
+                ));
+            }
             let response = BackendClient::get_provider_rate_limits(
                 api_provider,
                 auth,

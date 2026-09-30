@@ -1,0 +1,13 @@
+---
+source: tui/src/app/tests/provider_usage_tests.rs
+assertion_line: 31
+expression: "render_bottom_popup(&app.chat_widget, 80)"
+---
+  Usage limit resets
+  Couldn't load usage limit resets. Please try again.
+
+
+› 1. Try again
+  2. Close
+
+  enter select · esc back

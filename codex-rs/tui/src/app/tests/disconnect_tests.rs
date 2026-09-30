@@ -321,6 +321,10 @@ where
             "account/read" => {
                 Some(json!({"result": {"account": null, "requiresOpenaiAuth": false}}))
             }
+            "modelProvider/capabilities/read" => Some(json!({"result": {
+                "namespaceTools": true, "imageGeneration": true, "webSearch": true,
+                "supportsUsage": false,
+            }})),
             "model/list" => Some(json!({"result": {"data": [], "nextCursor": null}})),
             "collaborationMode/list" => Some(json!({"result": {"data": []}})),
             "configRequirements/read" => Some(json!({"result": {"requirements": null}})),

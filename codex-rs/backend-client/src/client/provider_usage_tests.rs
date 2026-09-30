@@ -33,7 +33,13 @@ impl AuthProvider for SigningAuth {
     fn apply_auth(&self, mut request: Request) -> AuthProviderFuture<'_> {
         Box::pin(async move {
             assert_eq!(request.method, Method::GET);
-            assert!(request.url.contains("scope=project"));
+            assert_eq!(
+                url::Url::parse(&request.url)
+                    .unwrap()
+                    .query_pairs()
+                    .find(|(key, _)| key == "scope +&="),
+                Some(("scope +&=".into(), "project+a & b=1".into()))
+            );
             request.headers.extend(self.resolve_auth_headers().await?);
             request
                 .headers
@@ -55,16 +61,21 @@ async fn provider_usage_preserves_routing_and_applies_async_auth_to_final_reques
         } else {
             "/v1/usage"
         };
-        let expected_url = usage_url.as_ref().map_or_else(
-            || format!("{}/v1/usage?scope=project", server.uri()),
-            |url| format!("{url}&scope=project"),
-        );
+        let mut expected_url = url::Url::parse(
+            &usage_url
+                .clone()
+                .unwrap_or_else(|| format!("{}/v1/usage", server.uri())),
+        )
+        .unwrap();
+        expected_url
+            .query_pairs_mut()
+            .append_pair("scope +&=", "project+a & b=1");
         Mock::given(method("GET"))
             .and(path(expected_path))
             .and(header("authorization", "Bearer provider-token"))
             .and(header("x-provider", "custom"))
-            .and(header("x-signed-url", expected_url))
-            .and(query_param("scope", "project"))
+            .and(header("x-signed-url", expected_url.as_str()))
+            .and(query_param("scope +&=", "project+a & b=1"))
             .respond_with(
                 ResponseTemplate::new(/*s*/ 200)
                     .set_body_json(serde_json::json!({"plan_type": "pro"})),
@@ -73,7 +84,7 @@ async fn provider_usage_preserves_routing_and_applies_async_auth_to_final_reques
             .mount(&server)
             .await;
         let mut provider = test_provider(&server.uri()).await;
-        provider.query_params = Some([("scope".into(), "project".into())].into());
+        provider.query_params = Some([("scope +&=".into(), "project+a & b=1".into())].into());
         provider
             .headers
             .insert("x-provider", HeaderValue::from_static("custom"));

@@ -16,23 +16,22 @@ use std::time::Duration;
 impl Client {
     /// Reads Codex-compatible usage with provider credentials, without following redirects.
     pub async fn get_provider_rate_limits(
-        provider: Provider,
+        mut provider: Provider,
         auth: SharedAuthProvider,
         usage_url: Option<&str>,
         http_client_factory: HttpClientFactory,
     ) -> Result<Vec<RateLimitSnapshot>> {
         let client = Self::new_without_redirects(&provider.base_url, http_client_factory);
+        let query_params = provider.query_params.take();
         let mut request = provider.build_request(Method::GET, "usage");
-        if let Some(usage_url) = usage_url {
-            let mut url = url::Url::parse(usage_url)?;
-            if !matches!(url.scheme(), "http" | "https") {
-                anyhow::bail!("usage_url must be an absolute HTTP(S) URL");
-            }
-            if let Some(params) = &provider.query_params {
-                url.query_pairs_mut().extend_pairs(params);
-            }
-            request.url = url.into();
+        let mut url = url::Url::parse(usage_url.unwrap_or(&request.url))?;
+        if !matches!(url.scheme(), "http" | "https") {
+            anyhow::bail!("usage endpoint must be an absolute HTTP(S) URL");
         }
+        if let Some(params) = query_params {
+            url.query_pairs_mut().extend_pairs(params);
+        }
+        request.url = url.into();
         request.timeout = Some(Duration::from_secs(/*secs*/ 10));
         let request = auth.apply_auth(request).await?;
         let url = request.url.clone();

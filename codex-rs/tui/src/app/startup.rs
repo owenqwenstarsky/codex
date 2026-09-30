@@ -249,6 +249,7 @@ impl App {
             "connected app-server platform"
         );
         let bootstrap_ms = bootstrap.duration.as_millis();
+        app_server.sync_provider_usage(&mut config);
         if matches!(&session_selection, SessionSelection::Fork(_)) {
             // The app server resolves omitted overrides from the fork destination's config.
             if harness_overrides.model.is_none()

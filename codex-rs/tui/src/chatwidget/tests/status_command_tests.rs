@@ -12,6 +12,15 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
     chat.config.model_provider.supports_usage = true;
     chat.config.model_provider_id = "custom".into();
     chat.config.model_provider.name = "Custom API".into();
+    chat.local_settings.tui.status_line =
+        Some(vec!["five-hour-limit".into(), "weekly-limit".into()]);
+    chat.local_settings.tui.terminal_title =
+        Some(vec!["five-hour-limit".into(), "weekly-limit".into()]);
+    set_chatgpt_auth(&mut chat);
+    chat.thread_id = Some(ThreadId::from_string("00000000-0000-0000-0000-000000000001").unwrap());
+    chat.plan_type = Some(PlanType::Business);
+    chat.refresh_status_surfaces();
+    assert_eq!(status_line_text(&chat), None);
     chat.dispatch_command(SlashCommand::Status);
     let cell = match rx.try_recv().unwrap() {
         AppEvent::InsertHistoryCell(cell) => cell,
@@ -27,7 +36,16 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
     exhausted.spend_control_reached = Some(true);
     exhausted.rate_limit_reached_type = Some(RateLimitReachedType::WorkspaceMemberCreditsDepleted);
     exhausted.normal_model_slug = Some("gpt-5.6-luna".into());
-    chat.finish_status_rate_limit_refresh(request_id, vec![exhausted]);
+    exhausted.primary.as_mut().unwrap().window_duration_mins = Some(300);
+    exhausted.secondary = Some(RateLimitWindow {
+        used_percent: 20,
+        window_duration_mins: Some(10080),
+        resets_at: None,
+    });
+    let mut extra = snapshot(/*percent*/ 30.0);
+    extra.limit_id = Some("extra".into());
+    extra.limit_name = Some("Extra model".into());
+    chat.finish_status_rate_limit_refresh(request_id, vec![exhausted.clone(), extra]);
     assert_chatwidget_snapshot!(
         "custom_provider_status_usage",
         lines_to_single_string(&cell.display_lines(/*width*/ 100))
@@ -44,6 +62,14 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
         RateLimitSwitchPromptState::Idle
     ));
     assert!(rx.try_recv().is_err());
+    insta::assert_snapshot!(
+        "custom_provider_quota_footer",
+        status_line_text(&chat).unwrap()
+    );
+    assert_eq!(
+        chat.last_terminal_title.as_deref(),
+        Some("5h 0% left | weekly 80% left")
+    );
     chat.dispatch_command(SlashCommand::Status);
     let cached_cell = match rx.try_recv().unwrap() {
         AppEvent::InsertHistoryCell(cell) => cell,
@@ -61,6 +87,33 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
         lines_to_single_string(&cell.display_lines(/*width*/ 100)),
     );
     assert!(chat.refreshing_status_outputs.is_empty());
+    chat.dispatch_command(SlashCommand::Status);
+    let updated_cell = match rx.try_recv().unwrap() {
+        AppEvent::InsertHistoryCell(cell) => cell,
+        event => panic!("expected status output, got {event:?}"),
+    };
+    let request_id = match rx.try_recv().unwrap() {
+        AppEvent::RefreshRateLimits {
+            origin: RateLimitRefreshOrigin::StatusCommand { request_id },
+        } => request_id,
+        event => panic!("expected usage refresh, got {event:?}"),
+    };
+    exhausted.primary.as_mut().unwrap().used_percent = 40;
+    chat.finish_status_rate_limit_refresh(request_id, vec![exhausted]);
+    assert_eq!(
+        chat.rate_limit_snapshots_by_limit_id
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["codex"]
+    );
+    assert!(
+        !lines_to_single_string(&updated_cell.display_lines(/*width*/ 100)).contains("Extra model")
+    );
+    insta::assert_snapshot!(
+        "custom_provider_refreshed_quota_footer",
+        status_line_text(&chat).unwrap()
+    );
     // Stored ChatGPT credentials must not opt this custom usage endpoint into polling.
     set_chatgpt_auth(&mut chat);
     assert_eq!(chat.rate_limit_refresh_interval(), None);
@@ -684,4 +737,28 @@ async fn status_command_remains_visible_when_thread_changes_during_usage_refresh
         })),
     ));
     assert!(drain_insert_history(&mut rx).is_empty());
+}
+
+#[tokio::test]
+async fn custom_provider_status_skips_thread_billing_for_workspace_accounts() {
+    for plan_type in [
+        PlanType::Business,
+        PlanType::EnterpriseCbpUsageBased,
+        PlanType::EnterpriseCbpAutomation,
+    ] {
+        let (mut chat, mut rx, _ops) = make_chatwidget_manual(/*model_override*/ None).await;
+        set_chatgpt_auth(&mut chat);
+        chat.config.model_provider.supports_usage = true;
+        chat.plan_type = Some(plan_type);
+        chat.thread_id = Some(ThreadId::new());
+        chat.dispatch_command(SlashCommand::Status);
+        assert_matches!(rx.try_recv(), Ok(AppEvent::InsertHistoryCell(_)));
+        assert_matches!(
+            rx.try_recv(),
+            Ok(AppEvent::RefreshRateLimits {
+                origin: RateLimitRefreshOrigin::StatusCommand { .. },
+            })
+        );
+        assert!(rx.try_recv().is_err());
+    }
 }
