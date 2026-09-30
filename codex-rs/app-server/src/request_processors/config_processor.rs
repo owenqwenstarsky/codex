@@ -54,6 +54,7 @@ use codex_features::Feature;
 use codex_features::canonical_feature_for_key;
 use codex_features::feature_for_key;
 use codex_model_provider::create_model_provider;
+use codex_model_provider_info::ModelProviderInfo;
 use codex_plugin::PluginId;
 use codex_protocol::config_types::ForcedLoginMethod;
 use codex_protocol::config_types::WebSearchMode;
@@ -81,6 +82,7 @@ const SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT: &[&str] = &[
 pub(crate) struct ConfigRequestProcessor {
     outgoing: Arc<OutgoingMessageSender>,
     config_manager: ConfigManager,
+    account_provider: ModelProviderInfo,
     thread_manager: Arc<ThreadManager>,
     analytics_events_client: AnalyticsEventsClient,
 }
@@ -89,12 +91,14 @@ impl ConfigRequestProcessor {
     pub(crate) fn new(
         outgoing: Arc<OutgoingMessageSender>,
         config_manager: ConfigManager,
+        account_provider: ModelProviderInfo,
         thread_manager: Arc<ThreadManager>,
         analytics_events_client: AnalyticsEventsClient,
     ) -> Self {
         Self {
             outgoing,
             config_manager,
+            account_provider,
             thread_manager,
             analytics_events_client,
         }
@@ -210,6 +214,8 @@ impl ConfigRequestProcessor {
             namespace_tools: capabilities.namespace_tools,
             image_generation: capabilities.image_generation,
             web_search: capabilities.web_search,
+            // Account usage retains the provider selected at startup.
+            supports_usage: self.account_provider.supports_usage,
         })
     }
 

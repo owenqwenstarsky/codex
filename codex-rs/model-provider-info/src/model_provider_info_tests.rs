@@ -96,6 +96,8 @@ base_url = "http://localhost:11434/v1"
         requires_openai_auth: false,
         supports_websockets: false,
         supports_standalone_web_search: false,
+        supports_usage: false,
+        usage_url: None,
         include_internal_metadata: false,
     };
 
@@ -134,6 +136,8 @@ query_params = { api-version = "2025-04-01-preview" }
         requires_openai_auth: false,
         supports_websockets: false,
         supports_standalone_web_search: false,
+        supports_usage: false,
+        usage_url: None,
         include_internal_metadata: false,
     };
 
@@ -150,6 +154,8 @@ env_key = "API_KEY"
 http_headers = { "X-Example-Header" = "example-value" }
 env_http_headers = { "X-Example-Env-Header" = "EXAMPLE_ENV_VAR" }
 supports_standalone_web_search = true
+supports_usage = true
+usage_url = "https://example.com/backend-api/wham/usage"
         "#;
     let expected_provider = ModelProviderInfo {
         name: "Example".into(),
@@ -176,6 +182,8 @@ supports_standalone_web_search = true
         requires_openai_auth: false,
         supports_websockets: false,
         supports_standalone_web_search: true,
+        supports_usage: true,
+        usage_url: Some("https://example.com/backend-api/wham/usage".into()),
         include_internal_metadata: false,
     };
 
@@ -365,6 +373,8 @@ fn test_create_amazon_bedrock_provider() {
             requires_openai_auth: false,
             supports_websockets: false,
             supports_standalone_web_search: false,
+            supports_usage: false,
+            usage_url: None,
             include_internal_metadata: false,
         }
     );

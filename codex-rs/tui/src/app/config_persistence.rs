@@ -111,6 +111,14 @@ impl App {
             format!("Failed to rebuild config for cwd {cwd_display}"),
         )
         .await
+        .map(|mut config| {
+            if self.app_server_target.thread_params_mode()
+                == crate::app_server_session::ThreadParamsMode::Remote
+            {
+                config.model_provider.supports_usage = self.config.model_provider.supports_usage;
+            }
+            config
+        })
     }
 
     pub(super) async fn rebuild_config_for_permission_profile(
@@ -134,6 +142,14 @@ impl App {
             format!("Failed to rebuild config for permission profile {profile_id}"),
         )
         .await
+        .map(|mut config| {
+            if self.app_server_target.thread_params_mode()
+                == crate::app_server_session::ThreadParamsMode::Remote
+            {
+                config.model_provider.supports_usage = self.config.model_provider.supports_usage;
+            }
+            config
+        })
     }
 
     pub(super) async fn apply_permission_profile_selection(
@@ -429,6 +445,7 @@ impl App {
             self.local_settings.tui.terminal_resize_reflow_max_rows;
         self.config = config;
         self.chat_widget.sync_plugin_mentions_config(&self.config);
+        self.chat_widget.sync_provider_usage(&self.config);
         Ok(())
     }
 

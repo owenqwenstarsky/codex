@@ -2734,10 +2734,19 @@
           "description": "Whether this provider supports the standalone web-search endpoint.",
           "type": "boolean"
         },
+        "supports_usage": {
+          "default": false,
+          "description": "Whether this provider exposes Codex-compatible usage statistics for `/status`.",
+          "type": "boolean"
+        },
         "supports_websockets": {
           "default": false,
           "description": "Whether this provider supports the Responses API WebSocket transport.",
           "type": "boolean"
+        },
+        "usage_url": {
+          "description": "Optional full usage endpoint URL. Defaults to `<base_url>/usage` when enabled.",
+          "type": "string"
         },
         "websocket_connect_timeout_ms": {
           "description": "Maximum time (in milliseconds) to wait for a websocket connection attempt before treating it as failed.",

@@ -84,6 +84,8 @@ async fn continue_after_stream_error() {
         requires_openai_auth: false,
         supports_websockets: false,
         supports_standalone_web_search: false,
+        supports_usage: false,
+        usage_url: None,
         include_internal_metadata: false,
     };
 

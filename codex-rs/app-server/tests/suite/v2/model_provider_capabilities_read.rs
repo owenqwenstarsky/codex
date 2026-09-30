@@ -29,6 +29,7 @@ async fn read_default_provider_capabilities() -> Result<()> {
         namespace_tools: true,
         image_generation: true,
         web_search: true,
+        supports_usage: false,
     };
     assert_eq!(received, expected);
     Ok(())
@@ -58,6 +59,7 @@ async fn read_amazon_bedrock_provider_capabilities() -> Result<()> {
         namespace_tools: true,
         image_generation: false,
         web_search: true,
+        supports_usage: false,
     };
     assert_eq!(received, expected);
     Ok(())
@@ -88,6 +90,46 @@ async fn read_amazon_bedrock_runtime_provider_capabilities() -> Result<()> {
             namespace_tools: true,
             image_generation: false,
             web_search: false,
+            supports_usage: false,
+        }
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn read_startup_provider_usage_capability_after_config_change() -> Result<()> {
+    let home = TempDir::new()?;
+    let config_file = home.path().join("config.toml");
+    std::fs::write(
+        &config_file,
+        r#"
+model_provider = "custom"
+[model_providers.custom]
+name = "Usage provider"
+supports_usage = true
+"#,
+    )?;
+    let mut app = TestAppServer::builder()
+        .with_codex_home(home.path())
+        .build_initialized_with_timeout(DEFAULT_TIMEOUT)
+        .await?;
+    // Account usage retains its startup provider even when the global config changes.
+    std::fs::write(
+        &config_file,
+        "model_provider = \"amazon-bedrock-runtime\"\n",
+    )?;
+    let id = app
+        .send_model_provider_capabilities_read_request(ModelProviderCapabilitiesReadParams {})
+        .await?;
+    let response: ModelProviderCapabilitiesReadResponse =
+        timeout(DEFAULT_TIMEOUT, app.read_response(id)).await??;
+    assert_eq!(
+        response,
+        ModelProviderCapabilitiesReadResponse {
+            namespace_tools: true,
+            image_generation: false,
+            web_search: false,
+            supports_usage: true,
         }
     );
     Ok(())

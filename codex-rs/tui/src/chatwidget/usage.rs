@@ -16,7 +16,8 @@ const RATE_LIMIT_RESET_CONFIRMATION_VIEW_ID: &str = "rate-limit-reset-confirmati
 impl ChatWidget {
     pub(super) fn open_usage_menu(&mut self) {
         self.clear_pending_rate_limit_reset_hint();
-        let should_refresh_reset_availability = self.available_rate_limit_reset_credits == Some(0);
+        let should_refresh_reset_availability = !self.config.model_provider.supports_usage
+            && self.available_rate_limit_reset_credits == Some(0);
         self.bottom_pane
             .show_selection_view(self.usage_menu_params());
         if should_refresh_reset_availability {
@@ -30,7 +31,7 @@ impl ChatWidget {
     }
 
     fn usage_menu_params(&self) -> SelectionViewParams {
-        let reset_eligible = self.has_chatgpt_account;
+        let reset_eligible = self.has_chatgpt_account && !self.config.model_provider.supports_usage;
         let (reset_action_enabled, reset_description) =
             match (reset_eligible, self.available_rate_limit_reset_credits) {
                 (true, Some(available_count)) if available_count > 0 => {
@@ -224,7 +225,8 @@ impl ChatWidget {
         reset_detail: Option<String>,
         reset_description: String,
     ) -> bool {
-        if self.rate_limit_reset_picker_request_id != Some(picker_request_id)
+        if self.config.model_provider.supports_usage
+            || self.rate_limit_reset_picker_request_id != Some(picker_request_id)
             || self
                 .bottom_pane
                 .selected_index_for_active_view(RATE_LIMIT_RESET_VIEW_ID)
@@ -281,6 +283,10 @@ impl ChatWidget {
         &mut self,
         idempotency_key: &str,
     ) -> Option<u64> {
+        if self.config.model_provider.supports_usage {
+            self.clear_pending_usage_actions();
+            return None;
+        }
         if self.pending_rate_limit_reset_idempotency_key.as_deref() != Some(idempotency_key) {
             return None;
         }
@@ -514,12 +520,16 @@ impl ChatWidget {
     }
 
     pub(crate) fn clear_pending_rate_limit_reset_requests(&mut self) {
+        self.clear_pending_usage_actions();
+        self.rate_limit_snapshots_by_limit_id.clear();
+    }
+
+    fn clear_pending_usage_actions(&mut self) {
         self.pending_rate_limit_reset_request_id = None;
         self.pending_rate_limit_reset_idempotency_key = None;
         self.rate_limit_reset_picker_request_id = None;
         self.pending_usage_menu_rate_limit_request_id = None;
         self.available_rate_limit_reset_credits = None;
-        self.rate_limit_snapshots_by_limit_id.clear();
         self.clear_pending_rate_limit_reset_hint();
         self.bottom_pane.dismiss_view_by_id(USAGE_MENU_VIEW_ID);
         self.bottom_pane

@@ -11,6 +11,7 @@ pub(crate) mod provider_selection;
 #[cfg(test)]
 #[path = "app_server_session/provider_selection_tests.rs"]
 mod provider_selection_tests;
+mod provider_usage;
 mod realtime;
 mod rollout_history;
 mod thread_list;
@@ -329,6 +330,7 @@ pub(crate) struct AppServerSession {
     default_model: Option<String>,
     available_models: Vec<ModelPreset>,
     managed_new_thread_defaults: Option<NewThreadModelDefaults>,
+    remote_provider_supports_usage: Option<bool>,
     external_agent_config_import_id: Mutex<Option<String>>,
     dynamic_tool_mcp: Option<Arc<DynamicToolMcpServer>>,
 }
@@ -433,6 +435,7 @@ impl AppServerSession {
             default_model: None,
             available_models: Vec::new(),
             managed_new_thread_defaults: None,
+            remote_provider_supports_usage: None,
             external_agent_config_import_id: Mutex::default(),
             dynamic_tool_mcp: None,
         }
@@ -592,6 +595,7 @@ impl AppServerSession {
         account: GetAccountResponse,
     ) -> Result<AppServerBootstrap> {
         let started_at = Instant::now();
+        self.load_provider_usage().await?;
         // `hooks/list` holds the global config queue during startup. Submit models and config
         // requirements together so an uncached model fetch can overlap both config requests.
         let model_request_id = self.next_request_id();

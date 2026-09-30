@@ -3690,6 +3690,23 @@ mod tests {
     }
 
     #[test]
+    fn deserialize_older_provider_capabilities_response() -> Result<()> {
+        let response: v2::ModelProviderCapabilitiesReadResponse = serde_json::from_value(json!({
+            "namespaceTools": true, "imageGeneration": false, "webSearch": true,
+        }))?;
+        assert_eq!(
+            response,
+            v2::ModelProviderCapabilitiesReadResponse {
+                namespace_tools: true,
+                image_generation: false,
+                web_search: true,
+                supports_usage: false,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_list_collaboration_modes() -> Result<()> {
         let request = ClientRequest::CollaborationModeList {
             request_id: RequestId::Integer(7),

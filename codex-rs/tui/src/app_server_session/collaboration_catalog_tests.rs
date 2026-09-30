@@ -29,6 +29,7 @@ async fn collaboration_catalog_is_optional_and_refetched_on_bootstrap() -> Resul
             .build()
             .await?;
         config.model = Some("task-model".into());
+        config.model_provider.supports_usage = true;
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let endpoint = crate::resolve_remote_addr(&format!("ws://{}", listener.local_addr()?))?;
         let server = tokio::spawn(async move {
@@ -44,6 +45,13 @@ async fn collaboration_catalog_is_optional_and_refetched_on_bootstrap() -> Resul
                     "account/read" => {
                         json!({"result": {"account": null, "requiresOpenaiAuth": false}})
                     }
+                    "modelProvider/capabilities/read" if initial_reply.is_none() => {
+                        json!({"error": {"code": -32601, "message": "Method not found"}})
+                    }
+                    // Older servers can implement this method without the new usage field.
+                    "modelProvider/capabilities/read" => json!({"result": {
+                        "namespaceTools": true, "imageGeneration": true, "webSearch": true,
+                    }}),
                     "model/list" => json!({"result": {"data": [], "nextCursor": null}}),
                     "configRequirements/read" => json!({"result": {"requirements": null}}),
                     "collaborationMode/list" => {
@@ -70,6 +78,8 @@ async fn collaboration_catalog_is_optional_and_refetched_on_bootstrap() -> Resul
             ThreadParamsMode::Remote,
         );
         let initial = session.bootstrap(&config).await?;
+        session.sync_provider_usage(&mut config);
+        assert!(!config.model_provider.supports_usage);
         assert_eq!(
             (initial.default_model, initial.collaboration_modes),
             ("task-model".into(), vec![])

@@ -1125,3 +1125,39 @@ fn show_usage_test_overlay(chat: &mut ChatWidget) {
         ..Default::default()
     });
 }
+
+#[tokio::test]
+async fn custom_provider_rejects_stale_reset_confirmation() {
+    let (mut chat, mut rx, _ops) = make_chatwidget_manual(/*model_override*/ None).await;
+    let request_id = chat.show_rate_limit_reset_loading_popup();
+    assert!(chat.finish_rate_limit_reset_credits_refresh(
+        request_id,
+        Vec::new(),
+        Ok(reset_credits(1))
+    ));
+    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    show_rate_limit_reset_confirmation_from_event(&mut chat, &mut rx);
+    chat.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    let AppEvent::ConsumeRateLimitResetCredit {
+        idempotency_key, ..
+    } = rx.try_recv().unwrap()
+    else {
+        panic!("expected reset consumption event");
+    };
+    chat.config.model_provider.supports_usage = true;
+    chat.on_rate_limit_snapshot(Some(snapshot(/*percent*/ 42.0)));
+    assert_eq!(
+        chat.start_rate_limit_reset_consumption(&idempotency_key),
+        None
+    );
+    assert_eq!(
+        chat.rate_limit_snapshots_by_limit_id
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["codex"]
+    );
+    assert_eq!(chat.pending_rate_limit_reset_request_id, None);
+    assert!(!chat.bottom_pane.has_active_view());
+}

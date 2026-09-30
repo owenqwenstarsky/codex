@@ -109,6 +109,25 @@ impl App {
         app_server: &AppServerSession,
         origin: RateLimitRefreshOrigin,
     ) {
+        if self.config.model_provider.supports_usage
+            && !matches!(origin, RateLimitRefreshOrigin::StatusCommand { .. })
+        {
+            if !matches!(
+                origin,
+                RateLimitRefreshOrigin::Recovery | RateLimitRefreshOrigin::Periodic
+            ) && let Some((request_id, hard_stop_generation)) = self
+                .rate_limit_refresh_state
+                .start(origin, &mut self.rate_limit_hard_stop_generation)
+            {
+                self.app_event_tx.send(AppEvent::RateLimitsLoaded {
+                    request_id,
+                    origin,
+                    hard_stop_generation,
+                    result: Err("Usage resets aren't available for this provider.".into()),
+                });
+            }
+            return;
+        }
         if matches!(
             origin,
             RateLimitRefreshOrigin::Recovery | RateLimitRefreshOrigin::ResetConsume { .. }
@@ -122,7 +141,9 @@ impl App {
         else {
             return;
         };
-        self.chat_widget.start_usage_notice_read(request_id);
+        if !self.config.model_provider.supports_usage {
+            self.chat_widget.start_usage_notice_read(request_id);
+        }
         let request_handle = app_server.request_handle();
         let app_event_tx = self.app_event_tx.clone();
         tokio::spawn(async move {

@@ -47,6 +47,9 @@ pub struct ModelProviderCapabilitiesReadResponse {
     pub namespace_tools: bool,
     pub image_generation: bool,
     pub web_search: bool,
+    /// Whether the server account provider supports informational usage reads.
+    #[serde(default)]
+    pub supports_usage: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema, TS)]

@@ -15629,6 +15629,11 @@
           "namespaceTools": {
             "type": "boolean"
           },
+          "supportsUsage": {
+            "default": false,
+            "description": "Whether the server account provider supports informational usage reads.",
+            "type": "boolean"
+          },
           "webSearch": {
             "type": "boolean"
           }

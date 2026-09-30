@@ -355,7 +355,8 @@ impl ChatWidget {
     }
 
     pub(super) fn thread_usage_is_available(&self) -> bool {
-        self.has_codex_backend_auth
+        !self.config.model_provider.supports_usage
+            && self.has_codex_backend_auth
             && !self.thread_usage.feature_disabled
             && self.thread_id.is_some()
             && matches!(

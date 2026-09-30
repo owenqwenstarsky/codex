@@ -99,6 +99,8 @@ mod plugin_share;
 mod plugin_uninstall;
 mod process_exec;
 mod projects;
+#[path = "provider_usage_tests.rs"]
+mod provider_usage;
 mod rate_limit_reset_credits;
 mod rate_limits;
 #[path = "rate_limits_identity_tests.rs"]

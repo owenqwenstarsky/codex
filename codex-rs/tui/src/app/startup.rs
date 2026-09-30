@@ -249,6 +249,7 @@ impl App {
             "connected app-server platform"
         );
         let bootstrap_ms = bootstrap.duration.as_millis();
+        app_server.sync_provider_usage(&mut config);
         if matches!(&session_selection, SessionSelection::Fork(_)) {
             // The app server resolves omitted overrides from the fork destination's config.
             if harness_overrides.model.is_none()
@@ -1020,7 +1021,8 @@ See the Codex keymap documentation for supported actions and examples."
         // Kick off a non-blocking rate-limit prefetch so the first `/status`
         // already has data and available reset credits can be surfaced, without
         // delaying the initial frame render.
-        if requires_openai_auth && has_chatgpt_account {
+        if requires_openai_auth && has_chatgpt_account && !app.config.model_provider.supports_usage
+        {
             crate::daybreak::prefetch_notice(
                 &app.config,
                 &app_server,

@@ -1743,6 +1743,17 @@ impl App {
                         false
                     }
                 };
+                if self.config.model_provider.supports_usage
+                    && let RateLimitRefreshOrigin::StatusCommand { request_id } = origin
+                {
+                    let snapshots = if accepted {
+                        result.map(app_server_rate_limit_snapshots).unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    };
+                    self.chat_widget.finish_status_rate_limit_refresh(request_id, snapshots);
+                    return Ok(AppRunControl::Continue);
+                }
                 match result {
                 Ok(response) => {
                     let rate_limit_reset_credits = response.rate_limit_reset_credits.clone();
@@ -1886,6 +1897,10 @@ impl App {
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::OpenRateLimitResetCredits => {
+                if self.config.model_provider.supports_usage {
+                    self.chat_widget.add_error_message("Usage resets aren't available for this provider.".into());
+                    return Ok(AppRunControl::Continue);
+                }
                 let request_id = self.chat_widget.show_rate_limit_reset_loading_popup();
                 self.refresh_rate_limits(
                     app_server,

@@ -242,7 +242,7 @@ impl ChatWidget {
             crate::status::compose_agents_summary(&self.config, &self.instruction_source_paths);
         let (cell, handle) = crate::status::new_status_output_with_rate_limits_handle(
             &self.config,
-            self.requires_openai_auth,
+            self.requires_openai_auth && !self.config.model_provider.supports_usage,
             self.thread_id
                 .map(|_| self.config.model_provider_id.as_str()),
             self.remote_connection.as_ref(),
@@ -306,10 +306,33 @@ impl ChatWidget {
             return;
         }
 
+        if self.config.model_provider.supports_usage && !snapshots.is_empty() {
+            self.rate_limit_snapshots_by_limit_id.clear();
+        }
         for snapshot in snapshots {
-            self.on_rate_limit_snapshot(Some(snapshot));
+            if self.config.model_provider.supports_usage {
+                let limit_id = snapshot.limit_id.clone().unwrap_or_else(|| "codex".into());
+                let label = snapshot
+                    .limit_name
+                    .clone()
+                    .unwrap_or_else(|| limit_id.clone());
+                self.rate_limit_snapshots_by_limit_id.insert(
+                    limit_id,
+                    crate::status::rate_limit_snapshot_display_for_limit(
+                        &snapshot,
+                        label,
+                        Local::now(),
+                        self.clock_format,
+                    ),
+                );
+            } else {
+                self.on_rate_limit_snapshot(Some(snapshot));
+            }
         }
 
+        if self.config.model_provider.supports_usage {
+            self.refresh_status_surfaces();
+        }
         let rate_limit_snapshots: Vec<RateLimitSnapshotDisplay> = self
             .rate_limit_snapshots_by_limit_id
             .values()
@@ -330,6 +353,11 @@ impl ChatWidget {
         if updated_any {
             self.request_redraw();
         }
+    }
+
+    /// Adopts server-owned usage support without copying provider credentials or routing.
+    pub(crate) fn sync_provider_usage(&mut self, config: &Config) {
+        self.config.model_provider.supports_usage = config.model_provider.supports_usage;
     }
 
     pub(super) fn open_status_line_setup(&mut self) {
