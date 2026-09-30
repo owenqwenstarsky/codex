@@ -1,42 +1,58 @@
-//! Provider usage is informational and does not authorize ChatGPT account actions.
+//! Informational quota reads do not authorize ChatGPT account actions.
 
 use super::*;
 
 impl AccountRequestProcessor {
-    pub(super) async fn get_provider_usage_response(
+    pub(super) async fn get_informational_usage_response(
         &self,
     ) -> Result<GetAccountRateLimitsResponse, JSONRPCErrorError> {
         tokio::time::timeout(Duration::from_secs(/*secs*/ 10), async {
-            let provider = create_model_provider(
-                self.config.model_provider.clone(),
-                Some(Arc::clone(&self.auth_manager)),
-            );
-            let api_provider = provider
-                .api_provider()
+            let response = if let Some(proxy) = &self.config.usage_proxy {
+                let key = std::env::var(&proxy.env_key)
+                    .ok()
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| {
+                        invalid_request("usage proxy credentials are missing or empty")
+                    })?;
+                BackendClient::get_usage_proxy_rate_limits(
+                    &proxy.url,
+                    &key,
+                    self.config.http_client_factory(),
+                )
                 .await
-                .map_err(|_| invalid_request("failed to resolve usage provider"))?;
-            let auth = provider
-                .api_auth()
+                .map_err(|_| internal_error("failed to fetch usage proxy quota"))?
+            } else {
+                let provider = create_model_provider(
+                    self.config.model_provider.clone(),
+                    Some(Arc::clone(&self.auth_manager)),
+                );
+                let api_provider = provider
+                    .api_provider()
+                    .await
+                    .map_err(|_| invalid_request("failed to resolve usage provider"))?;
+                let auth = provider
+                    .api_auth()
+                    .await
+                    .map_err(|_| invalid_request("failed to resolve usage provider credentials"))?;
+                BackendClient::get_provider_rate_limits(
+                    api_provider,
+                    auth,
+                    self.config
+                        .model_provider
+                        .usage_url
+                        .as_deref()
+                        .map(String::as_str),
+                    self.config.http_client_factory(),
+                )
                 .await
-                .map_err(|_| invalid_request("failed to resolve usage provider credentials"))?;
-            let response = BackendClient::get_provider_rate_limits(
-                api_provider,
-                auth,
-                self.config
-                    .model_provider
-                    .usage_url
-                    .as_deref()
-                    .map(String::as_str),
-                self.config.http_client_factory(),
-            )
-            .await
-            .map_err(|_| internal_error("failed to fetch provider usage"))?;
+                .map_err(|_| internal_error("failed to fetch provider usage"))?
+            };
             let rate_limits = response
                 .iter()
                 .find(|snapshot| snapshot.limit_id.as_deref() == Some("codex"))
                 .or_else(|| response.first())
                 .cloned()
-                .ok_or_else(|| internal_error("provider usage returned no snapshots"))?;
+                .ok_or_else(|| internal_error("informational usage returned no snapshots"))?;
             Ok(GetAccountRateLimitsResponse {
                 rate_limits: rate_limits.into(),
                 rate_limits_by_limit_id: Some(
@@ -55,6 +71,6 @@ impl AccountRequestProcessor {
             })
         })
         .await
-        .map_err(|_| internal_error("provider usage fetch timed out"))?
+        .map_err(|_| internal_error("informational usage fetch timed out"))?
     }
 }

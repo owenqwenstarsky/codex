@@ -650,6 +650,9 @@ pub struct Config {
     /// Info needed to make an API request to the model.
     pub model_provider: ModelProviderInfo,
 
+    /// Resolved informational quota endpoint override.
+    pub usage_proxy: Option<codex_config::UsageProxyConfig>,
+
     /// Deprecated: `friendly` and `pragmatic` no longer select a style.
     pub personality: Option<Personality>,
 
@@ -4292,6 +4295,7 @@ impl Config {
                 .unwrap_or_default(),
             model_provider_id,
             model_provider,
+            usage_proxy: cfg.usage_proxy,
             cwd: resolved_cwd,
             workspace_roots: workspace_roots.clone(),
             workspace_roots_explicit,

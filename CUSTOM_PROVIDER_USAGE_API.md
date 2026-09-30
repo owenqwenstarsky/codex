@@ -27,6 +27,41 @@ supports_usage = true
 `supports_usage` defaults to `false`. `usage_url` takes effect only when this flag
 is enabled. Restart Codex after changing provider settings.
 
+## Global usage proxy
+
+Use a dedicated quota service regardless of the inference provider:
+
+```toml
+[usage_proxy]
+url = "https://usage.example.com/quota"
+env_key = "USAGE_PROXY_KEY"
+```
+
+Both fields are required. The URL must be absolute HTTP(S). Set the named
+environment variable on the **app-server host**; missing, empty, or whitespace-only
+values fail the read. The bodyless `GET` uses the full URL, including its query,
+and `Authorization: Bearer <environment value>`. It never inherits inference
+credentials, provider headers, or provider query parameters.
+
+Usage reads select the configured proxy first, then an opted-in custom provider,
+then existing account usage. The proxy works with built-in and custom providers,
+including when `supports_usage = false`. No failed proxy read falls back to
+provider or account usage. Redirects are rejected and reads time out after
+10 seconds.
+
+The proxy follows existing configuration-layer precedence. Named profiles use
+`<name>.config.toml`, selected with `--profile <name>`; put `[usage_proxy]` in that
+file to override the global settings. Project-local configuration cannot set
+credential-routing endpoints. Restart after changing configuration. Omit the
+configuration to disable the proxy.
+
+The same payload, informational RPC metadata, immediate `/status` rendering,
+asynchronous cache updates, and failure behavior described below apply to the
+proxy. Reads happen only on `/status` or explicit `account/rateLimits/read` calls;
+there is no startup polling, periodic polling, billing read, or recovery read.
+Analytics/history, thread usage and costs, inference traffic, and internal memory
+quota checks retain their existing routing.
+
 ## HTTP endpoints and authentication
 
 | Configuration | HTTP request |

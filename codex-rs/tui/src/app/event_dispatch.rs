@@ -1743,7 +1743,7 @@ impl App {
                         false
                     }
                 };
-                if self.config.model_provider.supports_usage
+                if (self.config.usage_proxy.is_some() || self.config.model_provider.supports_usage)
                     && let RateLimitRefreshOrigin::StatusCommand { request_id } = origin
                 {
                     let snapshots = if accepted {

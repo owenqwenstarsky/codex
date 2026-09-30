@@ -8,10 +8,43 @@ use pretty_assertions::assert_eq;
 
 #[tokio::test]
 async fn custom_provider_status_refresh_is_informational_and_preserves_cached_limits_on_failure() {
+    assert_informational_usage_status(
+        "custom",
+        /*usage_proxy*/ None,
+        "custom_provider_status_usage",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn usage_proxy_status_refresh_is_informational_and_preserves_cached_limits_on_failure() {
+    for provider in ["custom", "openai"] {
+        assert_informational_usage_status(
+            provider,
+            Some(codex_config::UsageProxyConfig {
+                url: "https://usage.example.com/quota".into(),
+                env_key: "USAGE_PROXY_KEY".into(),
+            }),
+            "usage_proxy_status_usage",
+        )
+        .await;
+    }
+}
+
+async fn assert_informational_usage_status(
+    provider: &str,
+    usage_proxy: Option<codex_config::UsageProxyConfig>,
+    snapshot_name: &str,
+) {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    chat.config.model_provider.supports_usage = true;
-    chat.config.model_provider_id = "custom".into();
+    let proxy = usage_proxy.is_some();
+    chat.config.model_provider.supports_usage = !proxy;
+    chat.config.usage_proxy = usage_proxy;
+    chat.config.model_provider_id = provider.into();
     chat.config.model_provider.name = "Custom API".into();
+    chat.local_settings.tui.status_line = Some(vec!["five-hour-limit".into()]);
+    chat.refresh_status_line();
+    assert_eq!(chat.bottom_pane.status_line_text(), None);
     chat.dispatch_command(SlashCommand::Status);
     let cell = match rx.try_recv().unwrap() {
         AppEvent::InsertHistoryCell(cell) => cell,
@@ -23,13 +56,19 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
         } => request_id,
         event => panic!("expected usage refresh, got {event:?}"),
     };
+    if proxy {
+        assert_chatwidget_snapshot!(
+            "usage_proxy_status_initial",
+            lines_to_single_string(&cell.display_lines(/*width*/ 100))
+        );
+    }
     let mut exhausted = snapshot(/*percent*/ 100.0);
     exhausted.spend_control_reached = Some(true);
     exhausted.rate_limit_reached_type = Some(RateLimitReachedType::WorkspaceMemberCreditsDepleted);
     exhausted.normal_model_slug = Some("gpt-5.6-luna".into());
     chat.finish_status_rate_limit_refresh(request_id, vec![exhausted]);
     assert_chatwidget_snapshot!(
-        "custom_provider_status_usage",
+        snapshot_name,
         lines_to_single_string(&cell.display_lines(/*width*/ 100))
     );
     assert_eq!(
@@ -44,6 +83,12 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
         RateLimitSwitchPromptState::Idle
     ));
     assert!(rx.try_recv().is_err());
+    let cached_status_line = chat.bottom_pane.status_line_text();
+    assert!(
+        cached_status_line
+            .as_ref()
+            .is_some_and(|line| line.contains("0%"))
+    );
     chat.dispatch_command(SlashCommand::Status);
     let cached_cell = match rx.try_recv().unwrap() {
         AppEvent::InsertHistoryCell(cell) => cell,
@@ -61,9 +106,11 @@ async fn custom_provider_status_refresh_is_informational_and_preserves_cached_li
         lines_to_single_string(&cell.display_lines(/*width*/ 100)),
     );
     assert!(chat.refreshing_status_outputs.is_empty());
+    assert_eq!(chat.bottom_pane.status_line_text(), cached_status_line);
     // Stored ChatGPT credentials must not opt this custom usage endpoint into polling.
     set_chatgpt_auth(&mut chat);
     assert_eq!(chat.rate_limit_refresh_interval(), None);
+    assert!(!chat.should_prefetch_rate_limits());
 }
 
 #[tokio::test]

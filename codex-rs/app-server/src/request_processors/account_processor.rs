@@ -1191,8 +1191,8 @@ impl AccountRequestProcessor {
         &self,
         params: GetAccountRateLimitsParams,
     ) -> Result<GetAccountRateLimitsResponse, JSONRPCErrorError> {
-        if self.config.model_provider.supports_usage {
-            return self.get_provider_usage_response().await;
+        if self.config.usage_proxy.is_some() || self.config.model_provider.supports_usage {
+            return self.get_informational_usage_response().await;
         }
         let Some((auth, http_client_factory)) =
             self.auth_manager.auth_with_http_client_factory().await

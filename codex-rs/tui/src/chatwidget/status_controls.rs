@@ -242,7 +242,9 @@ impl ChatWidget {
             crate::status::compose_agents_summary(&self.config, &self.instruction_source_paths);
         let (cell, handle) = crate::status::new_status_output_with_rate_limits_handle(
             &self.config,
-            self.requires_openai_auth && !self.config.model_provider.supports_usage,
+            self.requires_openai_auth
+                && self.config.usage_proxy.is_none()
+                && !self.config.model_provider.supports_usage,
             self.thread_id
                 .map(|_| self.config.model_provider_id.as_str()),
             self.remote_connection.as_ref(),
@@ -307,7 +309,7 @@ impl ChatWidget {
         }
 
         for snapshot in snapshots {
-            if self.config.model_provider.supports_usage {
+            if self.config.usage_proxy.is_some() || self.config.model_provider.supports_usage {
                 let limit_id = snapshot.limit_id.clone().unwrap_or_else(|| "codex".into());
                 let label = snapshot
                     .limit_name
@@ -345,6 +347,7 @@ impl ChatWidget {
         }
         self.refreshing_status_outputs = remaining;
         if updated_any {
+            self.refresh_status_line();
             self.request_redraw();
         }
     }
