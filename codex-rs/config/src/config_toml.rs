@@ -171,6 +171,8 @@ pub struct ConfigToml {
 
     /// Provider to use from the model_providers map.
     pub model_provider: Option<String>,
+    /// Informational quota endpoint override for all inference providers.
+    pub usage_proxy: Option<crate::UsageProxyConfig>,
 
     /// Size of the context window for the model, in tokens.
     pub model_context_window: Option<i64>,

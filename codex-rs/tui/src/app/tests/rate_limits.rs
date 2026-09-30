@@ -107,13 +107,32 @@ fn deliver_usage_limit_error(app: &mut App) {
 
 #[tokio::test]
 async fn custom_provider_usage_does_not_start_background_or_recovery_reads() -> Result<()> {
+    assert_informational_usage_suppresses_reads(/*usage_proxy*/ None).await
+}
+
+#[tokio::test]
+async fn usage_proxy_does_not_start_background_or_recovery_reads() -> Result<()> {
+    assert_informational_usage_suppresses_reads(Some(codex_config::UsageProxyConfig {
+        url: "https://usage.example.com/quota".into(),
+        env_key: "USAGE_PROXY_KEY".into(),
+    }))
+    .await
+}
+
+async fn assert_informational_usage_suppresses_reads(
+    usage_proxy: Option<codex_config::UsageProxyConfig>,
+) -> Result<()> {
     let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;
-    app.config.model_provider.supports_usage = true;
+    app.config.model_provider.supports_usage = usage_proxy.is_none();
+    app.config.usage_proxy = usage_proxy;
     set_chatgpt_auth(&mut app.chat_widget);
     let session = Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await?;
     for origin in [
         RateLimitRefreshOrigin::Recovery,
         RateLimitRefreshOrigin::Periodic,
+        RateLimitRefreshOrigin::UsageMenu { request_id: 0 },
+        RateLimitRefreshOrigin::ResetPicker { request_id: 0 },
+        RateLimitRefreshOrigin::ResetConsume { request_id: 0 },
         RateLimitRefreshOrigin::StartupPrefetch {
             reset_hint_request_id: 0,
         },

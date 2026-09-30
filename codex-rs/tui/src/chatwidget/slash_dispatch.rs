@@ -507,7 +507,10 @@ impl ChatWidget {
             SlashCommand::Daemon => self.app_event_tx.send(AppEvent::OpenDaemonMenu),
             SlashCommand::Warnings => self.app_event_tx.send(AppEvent::OpenWarnings),
             SlashCommand::Status => {
-                if self.config.model_provider.supports_usage || self.should_prefetch_rate_limits() {
+                if self.config.usage_proxy.is_some()
+                    || self.config.model_provider.supports_usage
+                    || self.should_prefetch_rate_limits()
+                {
                     let request_id = self.next_status_refresh_request_id;
                     self.next_status_refresh_request_id =
                         self.next_status_refresh_request_id.wrapping_add(1);

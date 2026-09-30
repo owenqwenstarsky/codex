@@ -4691,3 +4691,54 @@ prefix_rules = []
         Ok(())
     }
 }
+
+#[tokio::test]
+async fn usage_proxy_resolves_global_profile_and_cli_precedence() -> std::io::Result<()> {
+    let home = tempdir()?;
+    std::fs::write(
+        home.path().join(CONFIG_TOML_FILE),
+        "[usage_proxy]\nurl = 'https://global.example/quota'\nenv_key = 'GLOBAL_KEY'",
+    )?;
+    std::fs::write(
+        home.path().join("work.config.toml"),
+        "[usage_proxy]\nurl = 'https://profile.example/quota'\nenv_key = 'PROFILE_KEY'",
+    )?;
+    for (profile, cli_url, expected_url, expected_key) in [
+        (false, None, "https://global.example/quota", "GLOBAL_KEY"),
+        (true, None, "https://profile.example/quota", "PROFILE_KEY"),
+        (
+            true,
+            Some("https://cli.example/quota"),
+            "https://cli.example/quota",
+            "PROFILE_KEY",
+        ),
+    ] {
+        let mut options = LoaderOverrides::without_managed_config_for_tests();
+        if profile {
+            options.user_config_path = Some(AbsolutePathBuf::resolve_path_against_base(
+                "work.config.toml",
+                home.path(),
+            ));
+            options.user_config_profile = Some("work".parse().unwrap());
+        }
+        let config = ConfigBuilder::default()
+            .codex_home(home.path().to_path_buf())
+            .loader_overrides(options)
+            .cli_overrides(
+                cli_url
+                    .map(|url| ("usage_proxy.url".into(), TomlValue::String(url.into())))
+                    .into_iter()
+                    .collect(),
+            )
+            .build()
+            .await?;
+        assert_eq!(
+            config.usage_proxy,
+            Some(codex_config::UsageProxyConfig {
+                url: expected_url.into(),
+                env_key: expected_key.into(),
+            })
+        );
+    }
+    Ok(())
+}
